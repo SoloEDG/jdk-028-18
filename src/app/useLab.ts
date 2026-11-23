@@ -5,6 +5,7 @@ import { usePlacement } from "@/features/catalog";
 import { useCircuit } from "@/features/circuit";
 import { useSimulation } from "@/features/simulation";
 import { useChallenge } from "@/features/challenge";
+import { useGroups } from "@/features/groups";
 import { loadInitial, useWorkspace } from "@/features/workspace";
 export function useLab() {
   const initial = loadInitial(),
@@ -20,9 +21,11 @@ export function useLab() {
   const circuit = useCircuit(document, notify);
   const simulation = useSimulation(document),
     challenge = useChallenge(document);
+  const groups = useGroups(document, notify);
   const workspace = useWorkspace(document, notify, () => {
     circuit.resetSelection();
     challenge.reset();
+    groups.cancelPending();
     placement.tool.value = null;
   });
   function place(point: Point) {
@@ -65,6 +68,19 @@ export function useLab() {
     );
     if (node) node.label = label.trim().slice(0, 40) || node.kind;
   }
+  function deleteSelected() {
+    const id = circuit.selected.value;
+    if (!id) return;
+    const removedNode = document.value.nodes.find((node) => node.id === id);
+    if (removedNode) {
+      // 先移除节点与连线，再清理分组并按新结构校验合法性，
+      // 这样调整预览只针对仍然存在的输入计算。
+      circuit.deleteSelected();
+      if (removedNode.kind === "INPUT") groups.pruneInput(id);
+    } else {
+      circuit.deleteSelected();
+    }
+  }
   return {
     document,
     notice,
@@ -73,10 +89,12 @@ export function useLab() {
     circuit,
     simulation,
     challenge,
+    groups,
     workspace,
     place,
     move,
     cancel,
     renameNode,
+    deleteSelected,
   };
 }

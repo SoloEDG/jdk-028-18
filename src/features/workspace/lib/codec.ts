@@ -1,4 +1,10 @@
-import type { CircuitDocument, GateNode, Wire } from "@/shared/types";
+import type {
+  CircuitDocument,
+  GateNode,
+  GroupKind,
+  InputGroup,
+  Wire,
+} from "@/shared/types";
 import { getSpec } from "@/features/catalog";
 import { topologicalOrder } from "@/features/circuit";
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -14,7 +20,8 @@ export function decodeDocument(text: string): CircuitDocument {
     data.name.length > 80 ||
     !["xor", "and", "or"].includes(String(data.targetId)) ||
     !Array.isArray(data.nodes) ||
-    !Array.isArray(data.wires)
+    !Array.isArray(data.wires) ||
+    (data.groups !== undefined && !Array.isArray(data.groups))
   )
     throw new Error("文件格式或版本不受支持");
   if (data.nodes.length > 120 || data.wires.length > 480)
@@ -94,12 +101,49 @@ export function decodeDocument(text: string): CircuitDocument {
       to: { nodeId: to.id, port: Number(tp) },
     };
   });
+  const groupKinds: GroupKind[] = ["ONE_HOT", "MUTEX", "LINK"];
+  const groupIds = new Set<string>();
+  const inputIdSet = new Set(
+    nodes.filter((node) => node.kind === "INPUT").map((node) => node.id),
+  );
+  const groups: InputGroup[] = (data.groups ?? []).map((value) => {
+    if (
+      !object(value) ||
+      typeof value.id !== "string" ||
+      !value.id ||
+      value.id.length > 100 ||
+      groupIds.has(value.id) ||
+      typeof value.name !== "string" ||
+      value.name.length > 40 ||
+      !groupKinds.includes(value.kind as GroupKind) ||
+      !Array.isArray(value.memberIds)
+    )
+      throw new Error("分组内容无效或编号重复");
+    const memberIds = value.memberIds;
+    if (
+      memberIds.length < 2 ||
+      memberIds.some(
+        (member) =>
+          typeof member !== "string" || !inputIdSet.has(String(member)),
+      ) ||
+      new Set(memberIds).size !== memberIds.length
+    )
+      throw new Error("分组必须引用至少两个不同的有效输入");
+    groupIds.add(value.id);
+    return {
+      id: value.id,
+      kind: value.kind as GroupKind,
+      name: value.name,
+      memberIds: memberIds.map(String),
+    };
+  });
   const document: CircuitDocument = {
     version: 1,
     name: data.name,
     targetId: String(data.targetId),
     nodes,
     wires,
+    groups,
   };
   topologicalOrder(document);
   return document;

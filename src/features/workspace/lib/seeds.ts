@@ -49,6 +49,7 @@ export function sampleCircuit(): CircuitDocument {
         to: { nodeId: "y", port: 0 },
       },
     ],
+    groups: [],
   };
 }
 export function emptyCircuit(): CircuitDocument {
@@ -58,5 +59,6 @@ export function emptyCircuit(): CircuitDocument {
     targetId: "xor",
     nodes: [],
     wires: [],
+    groups: [],
   };
 }

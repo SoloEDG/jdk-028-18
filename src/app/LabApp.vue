@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted } from "vue";
 import { CatalogPanel } from "@/features/catalog";
 import { CircuitBoard } from "@/features/circuit";
 import { InputRack, SignalMonitor } from "@/features/simulation";
+import { GroupPanel } from "@/features/groups";
 import { ChallengePanel } from "@/features/challenge";
 import { WorkspaceBar } from "@/features/workspace";
 import { useLab } from "./useLab";
@@ -12,6 +13,7 @@ const { tool } = lab.placement,
   { selected, pending } = lab.circuit,
   { signals } = lab.simulation;
 const { target, table, passed, inspected, hint } = lab.challenge;
+const { groups } = lab;
 const { status } = lab.workspace;
 const selectedNode = computed(() =>
   document.value.nodes.find((node) => node.id === selected.value),
@@ -21,7 +23,7 @@ function keydown(event: KeyboardEvent) {
   if (event.key === "Escape") lab.cancel();
   if (event.key === "Delete" || event.key === "Backspace") {
     event.preventDefault();
-    lab.circuit.deleteSelected();
+    lab.deleteSelected();
   }
 }
 onMounted(() => window.addEventListener("keydown", keydown));
@@ -67,7 +69,7 @@ onUnmounted(() => window.removeEventListener("keydown", keydown));
             <button
               :disabled="!selected"
               aria-label="删除所选"
-              @click="lab.circuit.deleteSelected"
+              @click="lab.deleteSelected"
             >
               删除所选</button
             ><button :disabled="!pending && !tool" @click="lab.cancel">
@@ -89,7 +91,7 @@ onUnmounted(() => window.removeEventListener("keydown", keydown));
           @move="lab.move"
           @select="selected = $event"
           @port="lab.circuit.pickPort"
-          @toggle="lab.simulation.toggle"
+          @toggle="groups.requestToggle"
         />
         <div class="selection-strip">
           <template v-if="selectedNode"
@@ -117,7 +119,21 @@ onUnmounted(() => window.removeEventListener("keydown", keydown));
           <InputRack
             :nodes="document.nodes"
             :signals="signals"
-            @toggle="lab.simulation.toggle"
+            :groups="document.groups"
+            :illegal="!groups.isCurrentLegal"
+            @toggle="groups.requestToggle"
+          /><GroupPanel
+            :nodes="document.nodes"
+            :groups="document.groups"
+            :pending="groups.pending.value"
+            :is-current-legal="groups.isCurrentLegal.value"
+            :label-of="groups.labelOf"
+            @add="groups.addGroup"
+            @update="groups.updateGroup"
+            @remove="groups.removeGroup"
+            @choose="groups.chooseCandidate"
+            @confirm="groups.confirmPending"
+            @cancel="groups.cancelPending"
           /><SignalMonitor
             :document="document"
             :signals="signals"
